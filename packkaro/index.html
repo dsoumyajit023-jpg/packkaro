@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PackKaro – Label Cropper & Packing Helper</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <h1>PackKaro</h1>
+    <p>Crop labels, sort items, pack with zero mistakes.</p>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>Step 1: Where do your orders come from?</h2>
+      <p class="hint">
+        Start typing (e.g. "Mee", "Flip"). Pick a suggestion or type your own name.
+        When you fill a box, a new one opens automatically.
+      </p>
+
+      <!-- The boxes get added here by app.js -->
+      <div id="source-list"></div>
+
+      <!-- Suggestion list shared by all boxes. Users can still type anything. -->
+      <datalist id="source-suggestions"></datalist>
+
+      <div class="actions">
+        <button id="save-btn" type="button">Save my sources</button>
+        <button id="clear-btn" type="button" class="secondary">Clear</button>
+      </div>
+      <p id="status" role="status"></p>
+    </section>
+
+    <section class="card">
+      <h2>Backend check</h2>
+      <p class="hint">This tests the small server function that will later handle OTP, payments and QR codes.</p>
+      <button id="ping-btn" type="button" class="secondary">Test server</button>
+      <pre id="ping-result">(not tested yet)</pre>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
