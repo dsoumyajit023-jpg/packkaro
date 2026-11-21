@@ -1,73 +1,65 @@
-* { box-sizing: border-box; }
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PackKaro – Label Cropper & Packing Helper</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <h1>PackKaro</h1>
+    <p>Crop labels, sort items, pack with zero mistakes.</p>
+  </header>
 
-body {
-  margin: 0;
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  background: #f4f6fb;
-  color: #1c2333;
-}
+  <main>
+    <section class="card">
+      <h2>Step 1: Where do your orders come from?</h2>
+      <p class="hint">
+        Start typing (e.g. "Mee", "Flip"). Pick a suggestion or type your own name.
+        When you fill a box, a new one opens automatically.
+      </p>
 
-header {
-  background: #2b4acb;
-  color: #fff;
-  padding: 24px 16px;
-  text-align: center;
-}
-header h1 { margin: 0 0 4px; }
-header p { margin: 0; opacity: 0.9; }
+      <!-- The boxes get added here by app.js -->
+      <div id="source-list"></div>
 
-main {
-  max-width: 640px;
-  margin: 0 auto;
-  padding: 16px;
-}
+      <!-- Suggestion list shared by all boxes. Users can still type anything. -->
+      <datalist id="source-suggestions"></datalist>
 
-.card {
-  background: #fff;
-  border-radius: 12px;
-  padding: 20px;
-  margin-bottom: 16px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-}
-.card h2 { margin-top: 0; font-size: 1.15rem; }
-.hint { color: #5b6477; font-size: 0.92rem; }
+      <div class="actions">
+        <button id="save-btn" type="button">Save my sources</button>
+        <button id="clear-btn" type="button" class="secondary">Clear</button>
+      </div>
+      <p id="status" role="status"></p>
+    </section>
 
-.source-row { display: flex; gap: 8px; margin-bottom: 10px; }
-.source-row input {
-  flex: 1;
-  padding: 12px;
-  font-size: 1rem;
-  border: 2px solid #d5dbea;
-  border-radius: 8px;
-}
-.source-row input:focus { outline: none; border-color: #2b4acb; }
-.source-row input.filled { border-color: #1f9d55; background: #f1fbf5; }
+    <section class="card">
+      <h2>Step 2: Upload your label PDFs</h2>
+      <p class="hint">
+        Pick one or many PDF files. Nothing is uploaded to any server &ndash; the work happens
+        inside your own browser. Pages we are not sure about go to <b>Manual Check</b>.
+      </p>
+      <input id="file-input" type="file" accept="application/pdf" multiple />
+      <div class="actions">
+        <button id="scan-btn" type="button">Scan labels</button>
+      </div>
+      <div id="progress-wrap" hidden>
+        <progress id="progress-bar" value="0" max="100"></progress>
+        <p id="progress-text"></p>
+      </div>
+      <div id="results"></div>
+    </section>
 
-.remove-btn {
-  border: none;
-  background: #eef0f6;
-  border-radius: 8px;
-  width: 44px;
-  font-size: 1.1rem;
-  cursor: pointer;
-}
+    <section class="card">
+      <h2>Backend check</h2>
+      <p class="hint">This tests the small server function that will later handle OTP, payments and QR codes.</p>
+      <button id="ping-btn" type="button" class="secondary">Test server</button>
+      <pre id="ping-result">(not tested yet)</pre>
+    </section>
+  </main>
 
-button {
-  padding: 12px 18px;
-  font-size: 1rem;
-  border: none;
-  border-radius: 8px;
-  background: #2b4acb;
-  color: #fff;
-  cursor: pointer;
-}
-button.secondary { background: #e3e8f6; color: #1c2333; }
-.actions { display: flex; gap: 8px; margin-top: 8px; }
-
-#status { min-height: 1.4em; font-weight: 600; }
-pre {
-  background: #f1f3f9;
-  padding: 12px;
-  border-radius: 8px;
-  overflow-x: auto;
-}
+  <!-- PDF.js reads text from PDFs inside the browser (free, from a public CDN) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
