@@ -34,6 +34,23 @@
     </section>
 
     <section class="card">
+      <h2>Step 2: Upload your label PDFs</h2>
+      <p class="hint">
+        Pick one or many PDF files. Nothing is uploaded to any server &ndash; the work happens
+        inside your own browser. Pages we are not sure about go to <b>Manual Check</b>.
+      </p>
+      <input id="file-input" type="file" accept="application/pdf" multiple />
+      <div class="actions">
+        <button id="scan-btn" type="button">Scan labels</button>
+      </div>
+      <div id="progress-wrap" hidden>
+        <progress id="progress-bar" value="0" max="100"></progress>
+        <p id="progress-text"></p>
+      </div>
+      <div id="results"></div>
+    </section>
+
+    <section class="card">
       <h2>Backend check</h2>
       <p class="hint">This tests the small server function that will later handle OTP, payments and QR codes.</p>
       <button id="ping-btn" type="button" class="secondary">Test server</button>
@@ -41,6 +58,8 @@
     </section>
   </main>
 
+  <!-- PDF.js reads text from PDFs inside the browser (free, from a public CDN) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
