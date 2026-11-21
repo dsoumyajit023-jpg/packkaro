@@ -51,6 +51,41 @@
     </section>
 
     <section class="card">
+      <h2>Step 3: Crop and make print-ready labels</h2>
+      <p class="hint">
+        Scan your PDFs in Step 2 first. Each label is cropped, sorted by item code,
+        numbered, and marked <b>*</b> for quantity 1 or <b>**</b> for quantity above 1.
+        Use English letters and numbers for the shop name and message.
+      </p>
+
+      <label class="field">Shop name
+        <input type="text" id="shop-name" maxlength="40" />
+      </label>
+      <label class="field">Mini Thanks message
+        <input type="text" id="thanks-msg" maxlength="80" placeholder="A short message for your customer" />
+      </label>
+      <label class="field">Shop logo (optional)
+        <input type="file" id="logo-input" accept="image/png,image/jpeg" />
+      </label>
+      <img id="logo-preview" alt="Your logo" hidden />
+      <button id="logo-clear" type="button" class="secondary small" hidden>Remove logo</button>
+
+      <label class="field">Keep only the top part of each page (%)
+        <input type="number" id="top-percent" min="20" max="100" value="100" />
+      </label>
+      <p class="hint">Use 100 if your label fills the page. If the label sits on the top half of the page, use 50.</p>
+
+      <div class="actions">
+        <button id="make-btn" type="button" disabled>Create cropped labels PDF</button>
+      </div>
+      <div id="make-progress-wrap" hidden>
+        <progress id="make-bar" value="0" max="100"></progress>
+        <p id="make-text"></p>
+      </div>
+      <div id="make-results"></div>
+    </section>
+
+    <section class="card">
       <h2>Backend check</h2>
       <p class="hint">This tests the small server function that will later handle OTP, payments and QR codes.</p>
       <button id="ping-btn" type="button" class="secondary">Test server</button>
@@ -60,6 +95,7 @@
 
   <!-- PDF.js reads text from PDFs inside the browser (free, from a public CDN) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
