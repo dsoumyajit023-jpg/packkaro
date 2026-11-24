@@ -101,3 +101,24 @@ button.small { padding: 6px 12px; font-size: 0.9rem; margin-bottom: 12px; }
 .dl.warn { background: #c77d00; }
 .multi { font-weight: 700; background: #111; color: #fff; border-radius: 4px; padding: 1px 6px; font-size: 0.85rem; }
 [hidden] { display: none !important; }
+
+/* Site logo in the header */
+.logo { display: block; margin: 0 auto 8px; border-radius: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.25); }
+
+/* ---- Crop box, scissor loader, download ---- */
+.crop-box { margin-top: 16px; padding: 14px; border: 2px solid #2b4acb; border-radius: 10px; background: #f1f4ff;
+            display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.crop-box p { margin: 0; font-weight: 600; }
+.crop-status { margin-top: 14px; }
+.crop-loading { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 10px;
+                background: #f8f9fe; border: 2px dashed #b9c3e0; }
+.crop-loading-text { flex: 1; min-width: 0; font-size: 0.92rem; color: #5b6477; }
+.crop-loading-text progress { display: block; width: 100%; margin-top: 6px; }
+.scissor { flex: none; }
+.scissor .blade { transform-origin: 32px 36px; }
+.scissor .b1 { animation: snip1 0.5s ease-in-out infinite alternate; }
+.scissor .b2 { animation: snip2 0.5s ease-in-out infinite alternate; }
+@keyframes snip1 { from { transform: rotate(0deg); } to { transform: rotate(13deg); } }
+@keyframes snip2 { from { transform: rotate(0deg); } to { transform: rotate(-13deg); } }
+@media (prefers-reduced-motion: reduce) { .scissor .blade { animation: none; } }
+#crop-done .dl { font-size: 1.05rem; }
