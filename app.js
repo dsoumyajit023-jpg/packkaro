@@ -681,6 +681,19 @@ async function makeLabels() {
 }
 
 // The Crop button in the scan section: shows the scissor loader, then swaps the loader for a Download button.
+const MIN_LOADING_MS = 3000; // the scissor loader shows for at least 3 seconds
+
+// A "View" link: opens the cropped PDF in a new tab so you can check it before downloading.
+function viewLink(bytes, text) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+  a.target = "_blank";
+  a.rel = "noopener";
+  a.className = "dl view";
+  a.textContent = text;
+  return a;
+}
+
 function showCropDone(r) {
   cropDone.textContent = "";
   const msg = document.createElement("p");
@@ -688,7 +701,11 @@ function showCropDone(r) {
     msg.className = "ok-note";
     msg.textContent = r.ready.length + " label(s) cropped to 4 x 6 inch thermal size.";
     cropDone.appendChild(msg);
-    cropDone.appendChild(downloadLink(r.labelBytes, "packkaro-labels.pdf", "Download cropped labels"));
+    const row = document.createElement("div");
+    row.className = "dl-row";
+    row.appendChild(viewLink(r.labelBytes, "View"));
+    row.appendChild(downloadLink(r.labelBytes, "packkaro-labels.pdf", "Download cropped labels"));
+    cropDone.appendChild(row);
   } else {
     msg.textContent = "No label could be cropped safely. See the Manual Check list.";
     cropDone.appendChild(msg);
@@ -723,6 +740,33 @@ cropBtn.addEventListener("click", async () => {
   cropBar.value = 0;
   cropLoadingText.textContent = "Starting…";
   cropStatus.scrollIntoView({ behavior: "smooth", block: "nearest" });
+
+  // The bar moves smoothly so the loader always lasts at least 3 seconds.
+  const startedAt = Date.now();
+  let realPct = 0;
+  const timer = setInterval(() => {
+    const timePct = ((Date.now() - startedAt) / MIN_LOADING_MS) * 100;
+    cropBar.value = Math.min(realPct, timePct);
+  }, 100);
+
+  try {
+    const r = await buildLabels((pct, text) => { realPct = pct; cropLoadingText.textContent = text; });
+    const wait = MIN_LOADING_MS - (Date.now() - startedAt);
+    if (wait > 0) {
+      cropLoadingText.textContent = "Finishing…";
+      await new Promise(res => setTimeout(res, wait));
+    }
+    cropBar.value = 100;
+    showCropDone(r);
+  } catch (e) {
+    cropDone.textContent = "Something went wrong while cropping: " + (e && e.message ? e.message : e);
+  } finally {
+    clearInterval(timer);
+    cropLoading.hidden = true;   // the scissors go away...
+    cropDone.hidden = false;     // ...and the View + Download buttons take their place
+    cropBtn.disabled = false; scanBtn.disabled = false; makeBtn.disabled = false;
+  }
+});
   try {
     const r = await buildLabels((pct, text) => { cropBar.value = pct; cropLoadingText.textContent = text; });
     showCropDone(r);
