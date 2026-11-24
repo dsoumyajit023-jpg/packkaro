@@ -19,11 +19,10 @@
     <section class="card">
       <h2>Step 1: Upload your label PDFs</h2>
       <p class="hint">
-        Choose a PDF, then press <b>+</b> to add more files. Nothing is uploaded to any server - the work
-        happens inside your own browser. Pages we are not sure about go to <b>Manual Check</b>.
+        Pick one or many PDF files. Nothing is uploaded to any server - the work happens
+        inside your own browser. Pages we are not sure about go to <b>Manual Check</b>.
       </p>
-      <!-- File boxes are added here by app.js. Choose a file, then press + for another. -->
-      <div id="file-list"></div>
+      <input id="file-input" type="file" accept="application/pdf" multiple />
       <div class="actions">
         <button id="scan-btn" type="button">Scan labels</button>
       </div>
