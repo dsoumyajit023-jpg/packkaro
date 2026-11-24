@@ -767,17 +767,6 @@ cropBtn.addEventListener("click", async () => {
     cropBtn.disabled = false; scanBtn.disabled = false; makeBtn.disabled = false;
   }
 });
-  try {
-    const r = await buildLabels((pct, text) => { cropBar.value = pct; cropLoadingText.textContent = text; });
-    showCropDone(r);
-  } catch (e) {
-    cropDone.textContent = "Something went wrong while cropping: " + (e && e.message ? e.message : e);
-  } finally {
-    cropLoading.hidden = true;   // the scissors go away...
-    cropDone.hidden = false;     // ...and the Download button takes their place
-    cropBtn.disabled = false; scanBtn.disabled = false; makeBtn.disabled = false;
-  }
-});
 
 function showMakeResults(ready, bad, labelBytes, reviewBytes) {
   makeResults.textContent = "";
