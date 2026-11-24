@@ -135,3 +135,16 @@ button.small { padding: 6px 12px; font-size: 0.9rem; margin-bottom: 12px; }
 .dl-row { display: flex; flex-wrap: wrap; gap: 8px; }
 .dl-row .dl { margin: 8px 0 0 0; }
 .dl.view { background: #2b4acb; }
+
+/* Small note above the customise step */
+.section-note { margin: 20px 4px 8px; font-size: 0.95rem; font-weight: 600; color: #3b3320; }
+
+/* Bigger screen: on laptops and desktops everything is larger, so no zoom is needed */
+@media (min-width: 900px) {
+  html { font-size: 19px; }
+  main { max-width: 900px; padding: 24px; }
+  .card { padding: 28px; }
+  header { padding: 32px 16px; }
+  header h1 { font-size: 2.4rem; }
+  .logo { width: 96px; height: 96px; }
+}
