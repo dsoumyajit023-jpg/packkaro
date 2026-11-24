@@ -151,6 +151,27 @@ const PLATFORM_KEYWORDS = {
 const SKU_REGEX = /(?:seller\s*sku|product\s*sku|sku|item\s*code)\s*[:\-]?\s*([A-Za-z0-9][A-Za-z0-9_\-\/\.]{1,39})/i;
 const QTY_REGEX = /(?:qty|quantity)\s*[:\-]?\s*(\d{1,3})\b/i;
 
+// Couriers we can spot on a label. This only fills the "Courier" count table.
+const COURIERS = [
+  ["Ekart", /\bekart\b|\be[\s\-]kart\b/i],
+  ["Delhivery", /\bdelhivery\b/i],
+  ["Shadowfax", /\bshadowfax\b/i],
+  ["Xpressbees", /\bxpress\s*bees\b/i],
+  ["Ecom Express", /\becom\s*express\b/i],
+  ["DTDC", /\bdtdc\b/i],
+  ["Blue Dart", /\bblue\s*dart\b/i],
+  ["India Post", /\b(?:india|speed)\s*post\b/i],
+  ["Amazon Transport", /\bamazon\s*transport\b|\batsl\b/i],
+  ["Valmo", /\bvalmo\b/i],
+  ["Gati", /\bgati\b/i],
+  ["Shiprocket", /\bshiprocket\b/i]
+];
+
+// Thermal printer label size: 4 x 6 inch (the common shipping-label roll).
+// 1 inch = 72 points.
+const THERMAL_W = 4 * 72;  // 288
+const THERMAL_H = 6 * 72;  // 432
+
 const CHUNK_SIZE = 10; // pages handled before we give the browser a short rest
 
 const fileInput = document.getElementById("file-input");
@@ -159,6 +180,14 @@ const progressWrap = document.getElementById("progress-wrap");
 const progressBar = document.getElementById("progress-bar");
 const progressText = document.getElementById("progress-text");
 const resultsEl = document.getElementById("results");
+const cropBox = document.getElementById("crop-box");
+const cropBoxText = document.getElementById("crop-box-text");
+const cropBtn = document.getElementById("crop-btn");
+const cropStatus = document.getElementById("crop-status");
+const cropLoading = document.getElementById("crop-loading");
+const cropLoadingText = document.getElementById("crop-loading-text");
+const cropBar = document.getElementById("crop-bar");
+const cropDone = document.getElementById("crop-done");
 
 if (window.pdfjsLib) {
   pdfjsLib.GlobalWorkerOptions.workerSrc =
@@ -206,7 +235,13 @@ function analysePage(text) {
   if (qty === null) reasons.push("Quantity not found");
   else if (qty < 1 || qty > 99) { reasons.push("Quantity looks wrong (" + qty + ")"); qty = null; }
 
-  return { platform: det.platform || null, sku, qty, reasons };
+  return { platform: det.platform || null, sku, qty, reasons, courier: detectCourier(text) };
+}
+
+function detectCourier(text) {
+  const found = COURIERS.filter(([, rx]) => rx.test(text)).map(([name]) => name);
+  if (found.length === 1) return found[0];
+  return found.length > 1 ? "Unclear (more than one)" : "Not recognised";
 }
 
 function pause() { return new Promise(r => setTimeout(r, 0)); }
@@ -221,6 +256,8 @@ async function scanFiles() {
   document.getElementById("make-results").textContent = "";
   scanState = null;
   document.getElementById("make-btn").disabled = true;
+  cropBox.hidden = true;
+  cropStatus.hidden = true;
 
   if (!window.pdfjsLib) {
     resultsEl.textContent = "The PDF reader could not load. Check your internet and refresh.";
@@ -235,6 +272,7 @@ async function scanFiles() {
   progressText.textContent = "Opening files…";
 
   const counts = {};
+  const courierCounts = {};
   const records = [];       // one per page: { docIdx, page, platform, sku, qty, reason }
   const fileProblems = [];  // whole files we could not open
   const docs = [];
@@ -267,6 +305,7 @@ async function scanFiles() {
         rec.platform = r.platform; rec.sku = r.sku; rec.qty = r.qty;
         rec.reason = r.reasons.join("; ");
         if (r.platform) counts[r.platform] = (counts[r.platform] || 0) + 1;
+        if (r.courier) courierCounts[r.courier] = (courierCounts[r.courier] || 0) + 1;
         page.cleanup();
       } catch (e) {
         rec.reason = "Page could not be read";
@@ -291,27 +330,38 @@ async function scanFiles() {
   const review = fileProblems.concat(
     records.filter(r => r.reason).map(r => ({ file: docs[r.docIdx].file.name, page: r.page, reason: r.reason }))
   );
-  showResults(counts, review);
-  if (records.some(r => !r.reason)) document.getElementById("make-btn").disabled = false;
+  showResults(counts, review, courierCounts);
+  const goodCount = records.filter(r => !r.reason).length;
+  if (goodCount > 0) {
+    document.getElementById("make-btn").disabled = false;
+    cropBoxText.textContent = goodCount + " label(s) ready to crop" +
+      (review.length ? ". " + review.length + " need a manual check and are kept separate." : ".");
+    cropBox.hidden = false;
+  }
 }
 
-function showResults(counts, reviewList) {
+function countTable(firstHeader, counts) {
+  const table = document.createElement("table");
+  table.className = "counts";
+  const head = table.insertRow();
+  for (const h of [firstHeader, "Labels"]) {
+    const th = document.createElement("th"); th.textContent = h; head.appendChild(th);
+  }
+  for (const n of Object.keys(counts).sort((x, y) => counts[y] - counts[x])) {
+    const row = table.insertRow();
+    row.insertCell().textContent = n;
+    row.insertCell().textContent = counts[n];
+  }
+  return table;
+}
+
+function showResults(counts, reviewList, courierCounts) {
   resultsEl.textContent = "";
 
   const names = Object.keys(counts);
-  if (names.length > 0) {
-    const table = document.createElement("table");
-    table.className = "counts";
-    const head = table.insertRow();
-    for (const h of ["Platform", "Labels"]) {
-      const th = document.createElement("th"); th.textContent = h; head.appendChild(th);
-    }
-    for (const n of names.sort((a, b) => counts[b] - counts[a])) {
-      const row = table.insertRow();
-      row.insertCell().textContent = n;
-      row.insertCell().textContent = counts[n];
-    }
-    resultsEl.appendChild(table);
+  if (names.length > 0) resultsEl.appendChild(countTable("Platform", counts));
+  if (courierCounts && Object.keys(courierCounts).length > 0) {
+    resultsEl.appendChild(countTable("Courier", courierCounts));
   }
 
   if (reviewList.length > 0) {
@@ -498,178 +548,244 @@ function downloadLink(bytes, filename, text, extraClass) {
 }
 
 // ---- The main job ----
-async function makeLabels() {
-  makeResults.textContent = "";
-  if (!scanState) { makeResults.textContent = "Please scan your PDFs in Step 2 first."; return; }
-  if (!window.PDFLib) { makeResults.textContent = "The PDF maker could not load. Check your internet and refresh."; return; }
+// Builds the label PDF (and the Manual Check PDF). report(percent, text) is called as it works.
+async function buildLabels(report) {
+  if (!scanState) throw new Error("Please scan your PDFs first.");
+  if (!window.PDFLib) throw new Error("The PDF maker could not load. Check your internet and refresh.");
 
   const { PDFDocument, StandardFonts, rgb } = PDFLib;
   const topPct = Math.min(100, Math.max(20, Number(topPercentEl.value) || 100));
   const shopName = safeText(shopNameEl.value);
   const thanks = safeText(thanksEl.value);
 
-  makeBtn.disabled = true; scanBtn.disabled = true;
-  makeWrap.hidden = false; makeBar.value = 0; makeText.textContent = "Starting…";
-
   const good = scanState.records.filter(r => !r.reason).map(r => ({ ...r }));
   const bad = scanState.records.filter(r => r.reason).map(r => ({ ...r }));
   const total = good.length * 2;
   let done = 0;
   const started = Date.now();
-  const tick = async (label) => {
+  report(0, "Starting…");
+  const tick = async (label, i, n) => {
     done++;
     if (done % CHUNK_SIZE === 0 || done === total) {
       const per = (Date.now() - started) / 1000 / done;
-      makeBar.value = (done / total) * 100;
-      makeText.textContent = label + " " + done + " of " + total + " – about " + formatTime(per * (total - done)) + " left";
+      report((done / total) * 100,
+        label + " " + i + " of " + n + " – about " + formatTime(per * (total - done)) + " left");
       await pause();
     }
   };
 
+  // Part A: find the crop box of every good label.
+  const sourceDocs = new Map(); // docIdx -> pdf-lib document (or null if it failed)
+  for (const r of good) {
+    if (!sourceDocs.has(r.docIdx)) {
+      try { sourceDocs.set(r.docIdx, await PDFDocument.load(scanState.docs[r.docIdx].bytes)); }
+      catch (e) { sourceDocs.set(r.docIdx, null); }
+    }
+  }
+  let cropped = 0;
+  for (const r of good) {
+    if (!sourceDocs.get(r.docIdx)) { r.reason = "File could not be processed for cropping"; }
+    else {
+      try {
+        const m = await measureBox(scanState.docs[r.docIdx].pdf, r.page, topPct);
+        if (m.box) r.box = m.box; else r.reason = m.reason;
+      } catch (e) { r.reason = "Could not measure this page"; }
+    }
+    cropped++;
+    await tick("Cropping label", cropped, good.length);
+  }
+  const ready = good.filter(r => !r.reason);
+  const moved = good.filter(r => r.reason);
+  bad.push(...moved);
+
+  // Part B: sort by item code, then by quantity, then keep original order.
+  ready.sort((a, b) =>
+    a.sku.localeCompare(b.sku, undefined, { numeric: true, sensitivity: "base" }) ||
+    a.qty - b.qty || a.docIdx - b.docIdx || a.page - b.page);
+
+  // Part C: build the new PDF.
+  const out = await PDFDocument.create();
+  const font = await out.embedFont(StandardFonts.Helvetica);
+  const bold = await out.embedFont(StandardFonts.HelveticaBold);
+  let logo = null;
+  if (logoDataUrl) { try { logo = await out.embedPng(dataUrlToBytes(logoDataUrl)); } catch (e) { logo = null; } }
+
+  // Bring each label in (a few at a time), grouped by source file.
+  const embedded = new Map(); // record -> embedded page
+  const byDoc = new Map();
+  for (const r of ready) { if (!byDoc.has(r.docIdx)) byDoc.set(r.docIdx, []); byDoc.get(r.docIdx).push(r); }
+  let built = 0;
+  for (const [docIdx, list] of byDoc) {
+    const src = sourceDocs.get(docIdx);
+    for (let i = 0; i < list.length; i += CHUNK_SIZE) {
+      const chunk = list.slice(i, i + CHUNK_SIZE);
+      const pages = chunk.map(r => src.getPage(r.page - 1));
+      const emb = await out.embedPages(pages, chunk.map(r => r.box));
+      chunk.forEach((r, k) => embedded.set(r, emb[k]));
+      for (let k = 0; k < chunk.length; k++) { built++; await tick("Building label", built, ready.length); }
+    }
+  }
+  report(100, "Finishing…");
+
+  // One label per page, exactly the size of a 4 x 6 inch thermal label.
+  const W = THERMAL_W, H = THERMAL_H, M = 8, headerH = 30;
+  const hasFooter = !!(shopName || thanks || logo);
+  const footerH = hasFooter ? 42 : 0;
+  const N = ready.length;
+
+  ready.forEach((r, n) => {
+    const pg = out.addPage([W, H]);
+    const emb = embedded.get(r);
+
+    // Header strip: sequence number, item code, quantity badge.
+    pg.drawRectangle({ x: 0, y: H - headerH, width: W, height: headerH, color: rgb(0.94, 0.94, 0.94) });
+    const seq = "#" + (n + 1) + "/" + N;
+    pg.drawText(seq, { x: M, y: H - headerH + 10, size: 12, font: bold, color: rgb(0, 0, 0) });
+    const seqW = bold.widthOfTextAtSize(seq, 12);
+
+    let badgeLeft;
+    if (r.qty > 1) {
+      const t = "** QTY " + r.qty;
+      const tw = bold.widthOfTextAtSize(t, 13);
+      const bw = tw + 14;
+      badgeLeft = W - M - bw;
+      pg.drawRectangle({ x: badgeLeft, y: H - headerH + 4, width: bw, height: 22, color: rgb(0, 0, 0) });
+      pg.drawText(t, { x: badgeLeft + 7, y: H - headerH + 10, size: 13, font: bold, color: rgb(1, 1, 1) });
+    } else {
+      const t = "* QTY 1";
+      const tw = bold.widthOfTextAtSize(t, 12);
+      badgeLeft = W - M - tw;
+      pg.drawText(t, { x: badgeLeft, y: H - headerH + 10, size: 12, font: bold, color: rgb(0, 0, 0) });
+    }
+    const skuText = fitText(font, safeText(r.sku), 10, badgeLeft - (M + seqW + 10) - 8);
+    pg.drawText(skuText, { x: M + seqW + 10, y: H - headerH + 11, size: 10, font, color: rgb(0.1, 0.1, 0.1) });
+
+    // The cropped label, as large as fits.
+    const areaTop = H - headerH - 4, areaBottom = footerH + 4;
+    const bw = emb.width, bh = emb.height;
+    const k = Math.min((W - 2 * M) / bw, (areaTop - areaBottom) / bh, 2);
+    const dw = bw * k, dh = bh * k;
+    pg.drawPage(emb, { x: (W - dw) / 2, y: areaTop - dh, width: dw, height: dh });
+
+    // Footer: logo, shop name, Mini Thanks message.
+    if (hasFooter) {
+      pg.drawLine({ start: { x: M, y: footerH }, end: { x: W - M, y: footerH }, thickness: 0.5, color: rgb(0.6, 0.6, 0.6) });
+      let textX = M;
+      if (logo) {
+        const lk = Math.min(60 / logo.width, 32 / logo.height);
+        const lw = logo.width * lk, lh = logo.height * lk;
+        pg.drawImage(logo, { x: M, y: (footerH - lh) / 2, width: lw, height: lh });
+        textX = M + lw + 8;
+      }
+      const maxW = W - M - textX;
+      let y = footerH - 14;
+      if (shopName) {
+        pg.drawText(fitText(bold, shopName, 10, maxW), { x: textX, y, size: 10, font: bold });
+        y -= 11;
+      }
+      if (thanks) {
+        for (const line of wrapText(font, thanks, 8, maxW, shopName ? 2 : 3)) {
+          pg.drawText(line, { x: textX, y, size: 8, font, color: rgb(0.2, 0.2, 0.2) });
+          y -= 9;
+        }
+      }
+    }
+  });
+
+  // Part D: a second PDF with the untouched pages that need a human look.
+  let reviewBytes = null;
+  if (bad.length > 0) {
+    const rev = await PDFDocument.create();
+    for (const r of bad) {
+      try {
+        let src = sourceDocs.get(r.docIdx);
+        if (src === undefined) { src = await PDFDocument.load(scanState.docs[r.docIdx].bytes); sourceDocs.set(r.docIdx, src); }
+        if (!src) continue;
+        const [cp] = await rev.copyPages(src, [r.page - 1]);
+        rev.addPage(cp);
+      } catch (e) { /* cannot copy this one: it is still listed */ }
+    }
+    if (rev.getPageCount() > 0) reviewBytes = await rev.save();
+  }
+
+  const labelBytes = N > 0 ? await out.save() : null;
+  return { ready, bad, moved, labelBytes, reviewBytes };
+}
+
+// Step 3's own button (shows its result inside Step 3).
+async function makeLabels() {
+  makeResults.textContent = "";
+  makeBtn.disabled = true; scanBtn.disabled = true; cropBtn.disabled = true;
+  makeWrap.hidden = false; makeBar.value = 0; makeText.textContent = "Starting…";
   try {
-    // Part A: find the crop box of every good label.
-    const sourceDocs = new Map(); // docIdx -> pdf-lib document (or null if it failed)
-    for (const r of good) {
-      if (!sourceDocs.has(r.docIdx)) {
-        try { sourceDocs.set(r.docIdx, await PDFDocument.load(scanState.docs[r.docIdx].bytes)); }
-        catch (e) { sourceDocs.set(r.docIdx, null); }
-      }
-    }
-    for (const r of good) {
-      if (!sourceDocs.get(r.docIdx)) { r.reason = "File could not be processed for cropping"; }
-      else {
-        try {
-          const m = await measureBox(scanState.docs[r.docIdx].pdf, r.page, topPct);
-          if (m.box) r.box = m.box; else r.reason = m.reason;
-        } catch (e) { r.reason = "Could not measure this page"; }
-      }
-      await tick("Cropping");
-    }
-    const ready = good.filter(r => !r.reason);
-    const moved = good.filter(r => r.reason);
-    bad.push(...moved);
-
-    // Part B: sort by item code, then by quantity, then keep original order.
-    ready.sort((a, b) =>
-      a.sku.localeCompare(b.sku, undefined, { numeric: true, sensitivity: "base" }) ||
-      a.qty - b.qty || a.docIdx - b.docIdx || a.page - b.page);
-
-    // Part C: build the new PDF.
-    const out = await PDFDocument.create();
-    const font = await out.embedFont(StandardFonts.Helvetica);
-    const bold = await out.embedFont(StandardFonts.HelveticaBold);
-    let logo = null;
-    if (logoDataUrl) { try { logo = await out.embedPng(dataUrlToBytes(logoDataUrl)); } catch (e) { logo = null; } }
-
-    // Bring each label in (a few at a time), grouped by source file.
-    const embedded = new Map(); // record -> embedded page
-    const byDoc = new Map();
-    for (const r of ready) { if (!byDoc.has(r.docIdx)) byDoc.set(r.docIdx, []); byDoc.get(r.docIdx).push(r); }
-    // (progress for this part continues after the cropping part)
-    const total2 = ready.length;
-    let embDone = 0;
-    for (const [docIdx, list] of byDoc) {
-      const src = sourceDocs.get(docIdx);
-      for (let i = 0; i < list.length; i += CHUNK_SIZE) {
-        const chunk = list.slice(i, i + CHUNK_SIZE);
-        const pages = chunk.map(r => src.getPage(r.page - 1));
-        const emb = await out.embedPages(pages, chunk.map(r => r.box));
-        chunk.forEach((r, k) => embedded.set(r, emb[k]));
-        for (let k = 0; k < chunk.length; k++) { embDone++; await tick("Building"); }
-      }
-    }
-    // (if some labels were moved to Manual Check, the bar still ends at 100%)
-    makeBar.value = 100;
-
-    const W = 298, H = 420, M = 8, headerH = 30;
-    const hasFooter = !!(shopName || thanks || logo);
-    const footerH = hasFooter ? 42 : 0;
-    const N = ready.length;
-
-    ready.forEach((r, n) => {
-      const pg = out.addPage([W, H]);
-      const emb = embedded.get(r);
-
-      // Header strip: sequence number, item code, quantity badge.
-      pg.drawRectangle({ x: 0, y: H - headerH, width: W, height: headerH, color: rgb(0.94, 0.94, 0.94) });
-      const seq = "#" + (n + 1) + "/" + N;
-      pg.drawText(seq, { x: M, y: H - headerH + 10, size: 12, font: bold, color: rgb(0, 0, 0) });
-      const seqW = bold.widthOfTextAtSize(seq, 12);
-
-      let badgeLeft;
-      if (r.qty > 1) {
-        const t = "** QTY " + r.qty;
-        const tw = bold.widthOfTextAtSize(t, 13);
-        const bw = tw + 14;
-        badgeLeft = W - M - bw;
-        pg.drawRectangle({ x: badgeLeft, y: H - headerH + 4, width: bw, height: 22, color: rgb(0, 0, 0) });
-        pg.drawText(t, { x: badgeLeft + 7, y: H - headerH + 10, size: 13, font: bold, color: rgb(1, 1, 1) });
-      } else {
-        const t = "* QTY 1";
-        const tw = bold.widthOfTextAtSize(t, 12);
-        badgeLeft = W - M - tw;
-        pg.drawText(t, { x: badgeLeft, y: H - headerH + 10, size: 12, font: bold, color: rgb(0, 0, 0) });
-      }
-      const skuText = fitText(font, safeText(r.sku), 10, badgeLeft - (M + seqW + 10) - 8);
-      pg.drawText(skuText, { x: M + seqW + 10, y: H - headerH + 11, size: 10, font, color: rgb(0.1, 0.1, 0.1) });
-
-      // The cropped label, as large as fits.
-      const areaTop = H - headerH - 4, areaBottom = footerH + 4;
-      const bw = emb.width, bh = emb.height;
-      const k = Math.min((W - 2 * M) / bw, (areaTop - areaBottom) / bh, 2);
-      const dw = bw * k, dh = bh * k;
-      pg.drawPage(emb, { x: (W - dw) / 2, y: areaTop - dh, width: dw, height: dh });
-
-      // Footer: logo, shop name, Mini Thanks message.
-      if (hasFooter) {
-        pg.drawLine({ start: { x: M, y: footerH }, end: { x: W - M, y: footerH }, thickness: 0.5, color: rgb(0.6, 0.6, 0.6) });
-        let textX = M;
-        if (logo) {
-          const lk = Math.min(60 / logo.width, 32 / logo.height);
-          const lw = logo.width * lk, lh = logo.height * lk;
-          pg.drawImage(logo, { x: M, y: (footerH - lh) / 2, width: lw, height: lh });
-          textX = M + lw + 8;
-        }
-        const maxW = W - M - textX;
-        let y = footerH - 14;
-        if (shopName) {
-          pg.drawText(fitText(bold, shopName, 10, maxW), { x: textX, y, size: 10, font: bold });
-          y -= 11;
-        }
-        if (thanks) {
-          for (const line of wrapText(font, thanks, 8, maxW, shopName ? 2 : 3)) {
-            pg.drawText(line, { x: textX, y, size: 8, font, color: rgb(0.2, 0.2, 0.2) });
-            y -= 9;
-          }
-        }
-      }
-    });
-
-    // Part D: a second PDF with the untouched pages that need a human look.
-    let reviewBytes = null;
-    if (bad.length > 0) {
-      const rev = await PDFDocument.create();
-      for (const r of bad) {
-        try {
-          let src = sourceDocs.get(r.docIdx);
-          if (src === undefined) { src = await PDFDocument.load(scanState.docs[r.docIdx].bytes); sourceDocs.set(r.docIdx, src); }
-          if (!src) continue;
-          const [cp] = await rev.copyPages(src, [r.page - 1]);
-          rev.addPage(cp);
-        } catch (e) { /* cannot copy this one: it is still listed below */ }
-      }
-      if (rev.getPageCount() > 0) reviewBytes = await rev.save();
-    }
-
-    const labelBytes = N > 0 ? await out.save() : null;
-    showMakeResults(ready, bad, labelBytes, reviewBytes);
+    const r = await buildLabels((pct, text) => { makeBar.value = pct; makeText.textContent = text; });
+    showMakeResults(r.ready, r.bad, r.labelBytes, r.reviewBytes);
     makeText.textContent = "Done.";
   } catch (e) {
     makeResults.textContent = "Something went wrong while making the PDF: " + (e && e.message ? e.message : e);
   } finally {
-    makeBtn.disabled = false; scanBtn.disabled = false;
+    makeBtn.disabled = false; scanBtn.disabled = false; cropBtn.disabled = false;
   }
 }
+
+// The Crop button in the scan section: hides the preference box, shows the
+// scissor loader, then swaps the loader for a Download button.
+const step1Card = document.getElementById("step1-card");
+
+function showCropDone(r) {
+  cropDone.textContent = "";
+  const msg = document.createElement("p");
+  if (r.labelBytes) {
+    msg.className = "ok-note";
+    msg.textContent = r.ready.length + " label(s) cropped to 4 x 6 inch thermal size.";
+    cropDone.appendChild(msg);
+    cropDone.appendChild(downloadLink(r.labelBytes, "packkaro-labels.pdf", "Download cropped labels"));
+  } else {
+    msg.textContent = "No label could be cropped safely. See the Manual Check list.";
+    cropDone.appendChild(msg);
+  }
+  if (r.reviewBytes) {
+    cropDone.appendChild(downloadLink(r.reviewBytes, "packkaro-manual-check.pdf",
+      "Download Manual Check pages (" + r.bad.length + ")", "warn"));
+  }
+  if (r.moved.length > 0) {
+    const box = document.createElement("div");
+    box.className = "review";
+    const h3 = document.createElement("h3");
+    h3.textContent = "Also moved to Manual Check while cropping (" + r.moved.length + ")";
+    const ul = document.createElement("ul");
+    for (const m of r.moved) {
+      const li = document.createElement("li");
+      li.textContent = scanState.docs[m.docIdx].file.name + ", page " + m.page + ": " + m.reason;
+      ul.appendChild(li);
+    }
+    box.append(h3, ul);
+    cropDone.appendChild(box);
+  }
+}
+
+cropBtn.addEventListener("click", async () => {
+  if (!scanState) return;
+  step1Card.hidden = true; // remove the preference section
+  cropBtn.disabled = true; scanBtn.disabled = true; makeBtn.disabled = true;
+  cropStatus.hidden = false;
+  cropLoading.hidden = false;
+  cropDone.hidden = true;
+  cropDone.textContent = "";
+  cropBar.value = 0;
+  cropLoadingText.textContent = "Starting…";
+  cropStatus.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  try {
+    const r = await buildLabels((pct, text) => { cropBar.value = pct; cropLoadingText.textContent = text; });
+    showCropDone(r);
+  } catch (e) {
+    cropDone.textContent = "Something went wrong while cropping: " + (e && e.message ? e.message : e);
+  } finally {
+    cropLoading.hidden = true;   // the scissors go away...
+    cropDone.hidden = false;     // ...and the Download button takes their place
+    cropBtn.disabled = false; scanBtn.disabled = false; makeBtn.disabled = false;
+  }
+});
 
 function showMakeResults(ready, bad, labelBytes, reviewBytes) {
   makeResults.textContent = "";
