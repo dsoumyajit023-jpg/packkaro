@@ -52,7 +52,7 @@ const THERMAL_H = 6 * 72;  // 432
 
 const CHUNK_SIZE = 10; // pages handled before we give the browser a short rest
 
-const fileListEl = document.getElementById("file-list");
+const fileInput = document.getElementById("file-input");
 const scanBtn = document.getElementById("scan-btn");
 const progressWrap = document.getElementById("progress-wrap");
 const progressBar = document.getElementById("progress-bar");
@@ -129,80 +129,6 @@ function formatTime(sec) {
   return sec >= 60 ? Math.floor(sec / 60) + " min " + (sec % 60) + " s" : sec + " s";
 }
 
-// ---- Upload boxes: choose a file, press + to add another one ----
-const MAX_FILE_ROWS = 20;
-
-function fileRows() { return [...fileListEl.querySelectorAll(".file-row")]; }
-
-function refreshFileRows() {
-  const rows = fileRows();
-  rows.forEach((row, i) => {
-    const input = row.querySelector("input");
-    const hasFile = input.files.length > 0;
-    row.querySelector(".plus-btn").hidden = !(hasFile && i === rows.length - 1 && rows.length < MAX_FILE_ROWS);
-    row.querySelector(".remove-btn").hidden = rows.length === 1;
-  });
-}
-
-function addFileRow(openPicker) {
-  const row = document.createElement("div");
-  row.className = "file-row";
-
-  const input = document.createElement("input");
-  input.type = "file";
-  input.accept = "application/pdf";
-  input.multiple = true;
-  input.hidden = true;
-
-  const pick = document.createElement("button");
-  pick.type = "button";
-  pick.className = "file-pick";
-  pick.textContent = "Choose PDF file";
-  pick.addEventListener("click", () => input.click());
-
-  const plus = document.createElement("button");
-  plus.type = "button";
-  plus.className = "plus-btn";
-  plus.textContent = "+";
-  plus.title = "Add another file";
-  plus.hidden = true;
-  plus.addEventListener("click", () => addFileRow(true));
-
-  const remove = document.createElement("button");
-  remove.type = "button";
-  remove.className = "remove-btn";
-  remove.textContent = "×";
-  remove.title = "Remove this file";
-  remove.addEventListener("click", () => { row.remove(); refreshFileRows(); });
-
-  input.addEventListener("change", () => {
-    const n = input.files.length;
-    pick.textContent = n === 0 ? "Choose PDF file" : n === 1 ? input.files[0].name : n + " files selected";
-    pick.classList.toggle("filled", n > 0);
-    refreshFileRows();
-  });
-
-  row.append(input, pick, plus, remove);
-  fileListEl.appendChild(row);
-  refreshFileRows();
-  if (openPicker) input.click();
-}
-
-// Every chosen file from every box (the same file twice is counted once).
-function getAllFiles() {
-  const seen = new Set();
-  const files = [];
-  for (const row of fileRows()) {
-    for (const f of row.querySelector("input").files) {
-      const key = f.name + "|" + f.size + "|" + f.lastModified;
-      if (!seen.has(key)) { seen.add(key); files.push(f); }
-    }
-  }
-  return files;
-}
-
-addFileRow(false);
-
 async function scanFiles() {
   resultsEl.textContent = "";
   document.getElementById("make-results").textContent = "";
@@ -215,7 +141,7 @@ async function scanFiles() {
     resultsEl.textContent = "The PDF reader could not load. Check your internet and refresh.";
     return;
   }
-  const files = getAllFiles();
+  const files = [...fileInput.files];
   if (files.length === 0) { resultsEl.textContent = "Please choose at least one PDF first."; return; }
 
   scanBtn.disabled = true;
