@@ -16,28 +16,8 @@
   </header>
 
   <main>
-    <section class="card" id="step1-card">
-      <h2>Step 1: Where do your orders come from?</h2>
-      <p class="hint">
-        Type your order source. Pick a suggestion or type your own name.
-        When you fill a box, a new one opens automatically.
-      </p>
-
-      <!-- The boxes get added here by app.js -->
-      <div id="source-list"></div>
-
-      <!-- Suggestion list shared by all boxes. Users can still type anything. -->
-      <datalist id="source-suggestions"></datalist>
-
-      <div class="actions">
-        <button id="save-btn" type="button">Save my sources</button>
-        <button id="clear-btn" type="button" class="secondary">Clear</button>
-      </div>
-      <p id="status" role="status"></p>
-    </section>
-
     <section class="card">
-      <h2>Step 2: Upload your label PDFs</h2>
+      <h2>Step 1: Upload your label PDFs</h2>
       <p class="hint">
         Pick one or many PDF files. Nothing is uploaded to any server - the work happens
         inside your own browser. Pages we are not sure about go to <b>Manual Check</b>.
@@ -84,9 +64,9 @@
     </section>
 
     <section class="card">
-      <h2>Step 3: Crop and make print-ready labels</h2>
+      <h2>Step 2: Crop and make print-ready labels</h2>
       <p class="hint">
-        Scan your PDFs in Step 2 first. Each label is cropped, sorted by item code,
+        Scan your PDFs in Step 1 first. Each label is cropped, sorted by item code,
         numbered, and marked <b>*</b> for quantity 1 or <b>**</b> for quantity above 1.
         Use English letters and numbers for the shop name and message.
       </p>
