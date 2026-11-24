@@ -1,135 +1,13 @@
 // ------------------------------------------------------------
-// PackKaro – Step 1: Dynamic Source Boxes
+// PackKaro
 // ------------------------------------------------------------
 
-// 1) Starter suggestions. These are ONLY hints. Users can type anything.
-//    Later we can load this list from a server and add the names
-//    people type most often.
-const SUGGESTIONS = [
-  "Meesho", "Flipkart", "Amazon", "Myntra", "Ajio", "Nykaa",
-  "JioMart", "Snapdeal", "Shopsy", "Instagram Shop", "WhatsApp Orders",
-  "Own Website", "Shopify Store", "Offline / Walk-in"
-];
-
-const listEl = document.getElementById("source-list");
-const datalistEl = document.getElementById("source-suggestions");
-const statusEl = document.getElementById("status");
-
-// 2) Put the suggestions into the <datalist>.
-//    The browser shows them automatically as the user types.
-for (const name of SUGGESTIONS) {
-  const opt = document.createElement("option");
-  opt.value = name;
-  datalistEl.appendChild(opt);
-}
-
-// 3) Create one new empty box (a "row").
-function addRow(value = "") {
-  const row = document.createElement("div");
-  row.className = "source-row";
-
-  const input = document.createElement("input");
-  input.type = "text";
-  input.placeholder = "Type a source / preference…";
-  input.setAttribute("list", "source-suggestions"); // links to the suggestions
-  input.maxLength = 40;
-  input.value = value;
-
-  const removeBtn = document.createElement("button");
-  removeBtn.type = "button";
-  removeBtn.className = "remove-btn";
-  removeBtn.textContent = "×";
-  removeBtn.title = "Remove this box";
-  removeBtn.addEventListener("click", () => {
-    row.remove();
-    ensureOneEmptyBoxAtEnd();
-  });
-
-  // Every time the user types or picks a suggestion, check the boxes.
-  input.addEventListener("input", () => {
-    input.classList.toggle("filled", input.value.trim() !== "");
-    ensureOneEmptyBoxAtEnd();
-  });
-
-  row.append(input, removeBtn);
-  listEl.appendChild(row);
-  input.classList.toggle("filled", value.trim() !== "");
-  return input;
-}
-
-// 4) The "auto-open next box" rule:
-//    If the LAST box has text, add a new empty box after it.
-function ensureOneEmptyBoxAtEnd() {
-  const inputs = listEl.querySelectorAll("input");
-  if (inputs.length === 0) { addRow(); return; }
-  const last = inputs[inputs.length - 1];
-  if (last.value.trim() !== "") addRow();
-}
-
-// 5) Read all filled boxes -> clean list (no blanks, no duplicates).
-function getSources() {
-  const seen = new Set();
-  const result = [];
-  for (const input of listEl.querySelectorAll("input")) {
-    const name = input.value.trim().replace(/\s+/g, " ");
-    const key = name.toLowerCase();
-    if (name && !seen.has(key)) {
-      seen.add(key);
-      result.push(name);
-    }
-  }
-  return result;
-}
-
-// 6) Save in the browser (localStorage) so it is remembered next visit.
-//    Free, private to this device, no server needed.
-const STORAGE_KEY = "packkaro.sources";
-
-document.getElementById("save-btn").addEventListener("click", () => {
-  const sources = getSources();
-  if (sources.length === 0) {
-    statusEl.textContent = "Please add at least one source.";
-    return;
-  }
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(sources));
-  } catch (e) {
-    statusEl.textContent = "Could not save on this browser.";
-    return;
-  }
-  statusEl.textContent = "Saved: " + sources.join(", ");
-});
-
-document.getElementById("clear-btn").addEventListener("click", () => {
-  listEl.innerHTML = "";
-  try { localStorage.removeItem(STORAGE_KEY); } catch (e) { /* ignore */ }
-  statusEl.textContent = "";
-  addRow();
-});
-
-// 7) On page load: restore saved sources (if any) + one empty box.
-function init() {
-  let saved = [];
-  try { saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]"); } catch (e) { saved = []; }
-  for (const name of saved) addRow(name);
-  ensureOneEmptyBoxAtEnd();
-}
-init();
-
-// 8) Backend test: call our small server function at /api/hello.
-document.getElementById("ping-btn").addEventListener("click", async () => {
-  const out = document.getElementById("ping-result");
-  out.textContent = "Calling server…";
-  try {
-    const res = await fetch("/api/hello");
-    out.textContent = JSON.stringify(await res.json(), null, 2);
-  } catch (e) {
-    out.textContent = "No server found. This is normal if you opened the file directly on your computer.";
-  }
-});
+// The "where do your orders come from" boxes were removed.
+// Platforms are now found automatically from the label text (see PLATFORM_KEYWORDS below).
+function getSources() { return []; }
 
 // ------------------------------------------------------------
-// Step 2: Upload PDFs, read every page (platform, SKU, quantity)
+// Upload PDFs, read every page (platform, SKU, quantity)
 // ------------------------------------------------------------
 
 // Words that tell us which platform a label belongs to.
@@ -194,7 +72,7 @@ if (window.pdfjsLib) {
     "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 }
 
-// What the last scan found. Step 3 uses this.
+// What the last scan found. The crop step uses this.
 let scanState = null;
 
 function detectPlatform(text) {
@@ -388,7 +266,7 @@ function showResults(counts, reviewList, courierCounts) {
 scanBtn.addEventListener("click", scanFiles);
 
 // ------------------------------------------------------------
-// Step 3: Crop, add shop details, sort, number, make a new PDF
+// Crop, add shop details, sort, number, make a new PDF
 // ------------------------------------------------------------
 
 const shopNameEl = document.getElementById("shop-name");
@@ -712,7 +590,7 @@ async function buildLabels(report) {
   return { ready, bad, moved, labelBytes, reviewBytes };
 }
 
-// Step 3's own button (shows its result inside Step 3).
+// The "Create cropped labels PDF" button in the shop-details card.
 async function makeLabels() {
   makeResults.textContent = "";
   makeBtn.disabled = true; scanBtn.disabled = true; cropBtn.disabled = true;
@@ -728,10 +606,7 @@ async function makeLabels() {
   }
 }
 
-// The Crop button in the scan section: hides the preference box, shows the
-// scissor loader, then swaps the loader for a Download button.
-const step1Card = document.getElementById("step1-card");
-
+// The Crop button in the scan section: shows the scissor loader, then swaps the loader for a Download button.
 function showCropDone(r) {
   cropDone.textContent = "";
   const msg = document.createElement("p");
@@ -766,7 +641,6 @@ function showCropDone(r) {
 
 cropBtn.addEventListener("click", async () => {
   if (!scanState) return;
-  step1Card.hidden = true; // remove the preference section
   cropBtn.disabled = true; scanBtn.disabled = true; makeBtn.disabled = true;
   cropStatus.hidden = false;
   cropLoading.hidden = false;
